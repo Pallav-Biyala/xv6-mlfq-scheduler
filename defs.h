@@ -188,3 +188,11 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+// MFLQ Helper Functions
+int             quantum_for_priority(int q);
+int             allotment_for_priority(int q);
+void            account_tick(struct proc* p);
+int             demote_on_limit(struct proc* p);
+int             quantum_expired(struct proc* p);
+void            priority_boost(void);

@@ -40,10 +40,13 @@ struct proc {
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
+  int priority;                // Process Priority for MLFQ: 0 (highest) to 3(lowest)
   int pid;                     // Process ID
+  int ticks;                   // No. of time slice currently used by CPU for this process
+  int total_ticks;             // Total no. of time slice currently use by CPU for this process in a particular queue
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
-  struct context *context;     // swtch() here to run process
+  struct context *context;     // switch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
