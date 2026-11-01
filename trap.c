@@ -17,126 +17,123 @@ uint ticks;
 void
 tvinit(void)
 {
-  int i;
+	int i;
 
-  for (i = 0; i < 256; i++)
-    SETGATE(idt[i], 0, SEG_KCODE << 3, vectors[i], 0);
-  SETGATE(idt[T_SYSCALL], 1, SEG_KCODE << 3, vectors[T_SYSCALL], DPL_USER);
+	for (i = 0; i < 256; i++)
+		SETGATE(idt[i], 0, SEG_KCODE << 3, vectors[i], 0);
+	SETGATE(idt[T_SYSCALL], 1, SEG_KCODE << 3, vectors[T_SYSCALL], DPL_USER);
 
-  initlock(&tickslock, "time");
+	initlock(&tickslock, "time");
 }
 
 void
 idtinit(void)
 {
-  lidt(idt, sizeof(idt));
+	lidt(idt, sizeof(idt));
 }
 
 //PAGEBREAK: 41
 void
 trap(struct trapframe* tf)
 {
-  if (tf->trapno == T_SYSCALL) {
-    if (myproc()->killed)
-      exit();
-    myproc()->tf = tf;
-    syscall();
-    if (myproc()->killed)
-      exit();
-    return;
-  }
+	if (tf->trapno == T_SYSCALL) {
+		if (myproc()->killed)
+			exit();
+		myproc()->tf = tf;
+		syscall();
+		if (myproc()->killed)
+			exit();
+		return;
+	}
 
-  switch (tf->trapno) {
-  case T_IRQ0 + IRQ_TIMER: {
-    int boost = 0;
-    if (cpuid() == 0) {
-      acquire(&tickslock);
-      ticks++;
-      if (ticks % 100 == 0) {
-        // lets keep the boost timer 100, so after every 100 ticks we get a priority boost
-        boost = 1;
-      }
-      wakeup(&ticks);
-      release(&tickslock);
-    }
+	switch (tf->trapno) {
+	case T_IRQ0 + IRQ_TIMER: {
+		int boost = 0;
+		if (cpuid() == 0) {
+			acquire(&tickslock);
+			ticks++;
+			if (ticks % 500 == 0) {
+				// Boost process priorities every 500 timer ticks.
+				boost = 1;
+			}
+			wakeup(&ticks);
+			release(&tickslock);
+		}
 
-    if (boost) priority_boost();
-    lapiceoi();
-    break;
-  }
-  case T_IRQ0 + IRQ_IDE:
-    ideintr();
-    lapiceoi();
-    break;
-  case T_IRQ0 + IRQ_IDE + 1:
-    // Bochs generates spurious IDE1 interrupts.
-    break;
-  case T_IRQ0 + IRQ_KBD:
-    kbdintr();
-    lapiceoi();
-    break;
-  case T_IRQ0 + IRQ_COM1:
-    uartintr();
-    lapiceoi();
-    break;
-  case T_IRQ0 + 7:
-  case T_IRQ0 + IRQ_SPURIOUS:
-    cprintf("cpu%d: spurious interrupt at %x:%x\n",
-      cpuid(), tf->cs, tf->eip);
-    lapiceoi();
-    break;
+		if (boost) {
+			priority_boost();
+		}
 
-    //PAGEBREAK: 13
-  default:
-    if (myproc() == 0 || (tf->cs & 3) == 0) {
-      // In kernel, it must be our mistake.
-      cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
-        tf->trapno, cpuid(), tf->eip, rcr2());
-      panic("trap");
-    }
-    // In user space, assume process misbehaved.
-    cprintf("pid %d %s: trap %d err %d on cpu %d "
-      "eip 0x%x addr 0x%x--kill proc\n",
-      myproc()->pid, myproc()->name, tf->trapno,
-      tf->err, cpuid(), tf->eip, rcr2());
-    myproc()->killed = 1;
-  }
+		lapiceoi();
+		break;
+	}
+	case T_IRQ0 + IRQ_IDE:
+		ideintr();
+		lapiceoi();
+		break;
+	case T_IRQ0 + IRQ_IDE + 1:
+		// Bochs generates spurious IDE1 interrupts.
+		break;
+	case T_IRQ0 + IRQ_KBD:
+		kbdintr();
+		lapiceoi();
+		break;
+	case T_IRQ0 + IRQ_COM1:
+		uartintr();
+		lapiceoi();
+		break;
+	case T_IRQ0 + 7:
+	case T_IRQ0 + IRQ_SPURIOUS:
+		cprintf("cpu%d: spurious interrupt at %x:%x\n",
+			cpuid(), tf->cs, tf->eip);
+		lapiceoi();
+		break;
 
-  // Force process exit if it has been killed and is in user space.
-  // (If it is still executing in the kernel, let it keep running
-  // until it gets to the regular system call return.)
-  if (myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)
-    exit();
+		//PAGEBREAK: 13
+	default:
+		if (myproc() == 0 || (tf->cs & 3) == 0) {
+			// In kernel, it must be our mistake.
+			cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
+				tf->trapno, cpuid(), tf->eip, rcr2());
+			panic("trap");
+		}
+		// In user space, assume process misbehaved.
+		cprintf("pid %d %s: trap %d err %d on cpu %d "
+			"eip 0x%x addr 0x%x--kill proc\n",
+			myproc()->pid, myproc()->name, tf->trapno,
+			tf->err, cpuid(), tf->eip, rcr2());
+		myproc()->killed = 1;
+	}
 
-  // Force process to give up CPU on clock tick.
-  // If interrupts were on while locks held, would need to check nlock.
-  if (myproc() && myproc()->state == RUNNING &&
-    tf->trapno == T_IRQ0 + IRQ_TIMER) {
-    // so we got interrupt, we increment timer and see total ticks and current ticks
-    account_tick(myproc());
+	// Force process exit if it has been killed and is in user space.
+	// (If it is still executing in the kernel, let it keep running
+	// until it gets to the regular system call return.)
+	if (myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)
+		exit();
 
-    // if it hits the cumulative time limit --> demote
-    if (demote_on_limit(myproc())) {
-      yield(); // we already demoted in function now yield
-    }
-    else if (quantum_expired(myproc())) {
-      struct proc* p = myproc();
+	// Force process to give up CPU on clock tick.
+	// If interrupts were on while locks held, would need to check nlock.
+	if (myproc() && myproc()->state == RUNNING &&
+		tf->trapno == T_IRQ0 + IRQ_TIMER) {
+		// so we got interrupt, we increment timer and see total ticks and current ticks
+		account_tick(myproc());
 
-      // Record the priority transition if the process is demoted.
-      if (p->priority < 3) {
-        p->priority++;
-      }
+		// if it hits the cumulative time limit --> demote
+		if (demote_on_limit(myproc())) {
+			cprintf("[MLFQ] t=%d pid %d demoted to Q%d (allotment)\n",
+				ticks, myproc()->pid, myproc()->priority);
+			yield();// we already demoted in function now yield
+		}
+		else if (quantum_expired(myproc())) {
+			// so now the process's quanta ended and hence it can now leave cpu and come back later.
+			yield();
+		}
+		else {
+			// now its not yet ended. continue
+		}
+	}
 
-      p->ticks = 0;
-      p->total_ticks = 0;
-      yield();
-    }
-    else {
-      // now its not yet ended. continue
-    }
-  }
-
-  // Check if the process has been killed since we yielded
-  if (myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)
-    exit();
+	// Check if the process has been killed since we yielded
+	if (myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)
+		exit();
 }

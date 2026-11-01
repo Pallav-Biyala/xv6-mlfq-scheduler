@@ -195,4 +195,4 @@ int             allotment_for_priority(int q);
 void            account_tick(struct proc* p);
 int             demote_on_limit(struct proc* p);
 int             quantum_expired(struct proc* p);
-void            priority_boost(void);
+int             priority_boost(void);
