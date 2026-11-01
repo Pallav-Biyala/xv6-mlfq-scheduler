@@ -1,51 +1,70 @@
-NOTE: we have stopped maintaining the x86 version of xv6, and switched
-our efforts to the RISC-V version
-(https://github.com/mit-pdos/xv6-riscv.git)
+# MLFQ Scheduler for xv6
 
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern x86-based multiprocessor using ANSI C.
+This project extends the original **xv6 x86 operating system** with a
+**Multi-Level Feedback Queue (MLFQ) CPU scheduler**.
 
-ACKNOWLEDGMENTS
+The goal is to explore how an operating system can balance responsiveness
+for interactive processes with CPU time for CPU-bound processes.
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)). See also https://pdos.csail.mit.edu/6.828/, which
-provides pointers to on-line resources for v6.
+## Overview
 
-xv6 borrows code from the following sources:
-    JOS (asm.h, elf.h, mmu.h, bootasm.S, ide.c, console.c, and others)
-    Plan 9 (entryother.S, mp.h, mp.c, lapic.c)
-    FreeBSD (ioapic.c)
-    NetBSD (console.c)
+The scheduler uses four priority levels:
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
+- **Q0** — highest priority
+- **Q1**
+- **Q2**
+- **Q3** — lowest priority
 
-We are also grateful for the bug reports and patches contributed by Silas
-Boyd-Wickizer, Anton Burtsev, Cody Cutler, Mike CAT, Tej Chajed, eyalz800,
-Nelson Elhage, Saar Ettinger, Alice Ferrazzi, Nathaniel Filardo, Peter
-Froehlich, Yakir Goaron,Shivam Handa, Bryan Henry, Jim Huang, Alexander
-Kapshuk, Anders Kaseorg, kehao95, Wolfgang Keller, Eddie Kohler, Austin
-Liew, Imbar Marinescu, Yandong Mao, Matan Shabtay, Hitoshi Mitake, Carmi
-Merimovich, Mark Morrissey, mtasm, Joel Nider, Greg Price, Ayan Shafqat,
-Eldar Sehayek, Yongming Shen, Cam Tenny, tyfkda, Rafael Ubal, Warren
-Toomey, Stephen Tu, Pablo Ventura, Xi Wang, Keiichi Watanabe, Nicolas
-Wolovick, wxdao, Grant Wu, Jindong Zhang, Icenowy Zheng, and Zou Chang Wei.
+New processes begin at the highest priority. The scheduler considers
+runnable processes from higher-priority queues first and uses round-robin
+selection within a priority level.
 
-The code in the files that constitute xv6 is
-Copyright 2006-2018 Frans Kaashoek, Robert Morris, and Russ Cox.
+## Scheduling Parameters
 
-ERROR REPORTS
+| Queue | Time Quantum | CPU Allotment |
+|:-----:|-------------:|--------------:|
+| Q0    | 6 ticks      | 30 ticks      |
+| Q1    | 10 ticks     | 50 ticks      |
+| Q2    | 16 ticks     | 80 ticks      |
+| Q3    | 24 ticks     | 120 ticks     |
 
-We don't process error reports (see note on top of this file).
+These are the project's current configuration values and can be adjusted
+for experimentation.
 
-BUILDING AND RUNNING XV6
+## Features
 
-To build xv6 on an x86 ELF machine (like Linux or FreeBSD), run
-"make". On non-x86 or non-ELF machines (like OS X, even on x86), you
-will need to install a cross-compiler gcc suite capable of producing
-x86 ELF binaries (see https://pdos.csail.mit.edu/6.828/).
-Then run "make TOOLPREFIX=i386-jos-elf-". Now install the QEMU PC
-simulator and run "make qemu".
+- **Priority-based scheduling:** higher-priority runnable processes are
+  considered before lower-priority processes.
+- **Round-robin selection:** processes at the same priority share CPU time.
+- **CPU-time accounting:** execution time is tracked for each process.
+- **Priority demotion:** CPU-bound processes can move to lower-priority
+  levels according to the scheduling policy.
+- **Periodic priority boosting:** processes are periodically promoted to
+  the highest queue to help prevent starvation.
+
+## Implementation
+
+The main implementation changes are in:
+
+- `proc.c` — scheduling, process accounting, demotion, and priority boosting
+- `proc.h` — per-process scheduling fields
+- `trap.c` — timer-tick accounting and scheduling decisions
+- `defs.h` — kernel function declarations
+- `Makefile` — build configuration
+
+Supporting declarations and interfaces may also be present in the syscall
+and user-interface files.
+
+## Build and Run
+
+Build the project in a Linux environment with the required compiler,
+GNU Make, and QEMU dependencies installed.
+
+From the repository root:
+
+```sh
+make clean
+make
+make qemu-nox
+
+---
