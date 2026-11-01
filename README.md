@@ -66,5 +66,6 @@ From the repository root:
 make clean
 make
 make qemu-nox
+```
 
 ---
