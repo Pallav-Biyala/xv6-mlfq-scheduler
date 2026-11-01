@@ -68,4 +68,34 @@ make
 make qemu-nox
 ```
 
+If the build succeeds, xv6 boots in the terminal.
+
+To exit QEMU, press Ctrl-A, followed by X.
+
+**Toolchain note:** newer GCC versions may treat warnings in the original
+xv6 code as errors. The current Makefile includes warning options used
+during development to accommodate the compiler.
+
+## Testing
+
+After booting xv6, use the xv6 shell to run available user programs and
+check that the system boots and remains responsive.
+
+Scheduler testing should include CPU-bound workloads and processes that
+sleep or perform I/O. These workloads help evaluate priority changes,
+time-sharing, and periodic priority boosts.
+
+## Project Scope
+
+This is an educational kernel-level scheduling project intended for 
+learning and experimentation, not a production operating system.
+
+## Attribution
+
+This project is based on
+<a href="https://github.com/mit-pdos/xv6-public">MIT's xv6-public</a>,
+the original x86 version of xv6.
+Please refer to the upstream repository for the original source and
+licensing information.
+
 ---
