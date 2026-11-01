@@ -1,6 +1,6 @@
 # MLFQ Scheduler for xv6
 
-This project extends the original **xv6 x86 operating system** with a
+This project extends the original **xv6 - x86 operating system** with a
 **Multi-Level Feedback Queue (MLFQ) CPU scheduler**.
 
 The goal is to explore how an operating system can balance responsiveness
