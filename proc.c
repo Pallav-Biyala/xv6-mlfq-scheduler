@@ -639,3 +639,22 @@ priority_boost(void)
     release(&ptable.lock);
     return moved;
 }
+
+// Adding getprio to kernel
+int
+getprio(int pid)
+{
+  struct proc *p;
+  int r = -1;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid && p->state != UNUSED){
+      r = p->priority;
+      break;
+    }
+  }
+  release(&ptable.lock);
+
+  return r;
+}
