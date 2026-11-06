@@ -104,6 +104,7 @@ extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
 extern int sys_getprio(void); // adding getprio to kernel
+extern int sys_mlfqctl(void); // adding mlfqctl to simulate mlfq
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -128,6 +129,7 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_getprio] sys_getprio, // adding getprio to kernel
+[SYS_mlfqctl] sys_mlfqctl, // adding mlfqctl to simulate mlfq
 };
 
 void

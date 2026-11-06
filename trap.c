@@ -58,6 +58,8 @@ trap(struct trapframe* tf)
 			}
 			wakeup(&ticks);
 			release(&tickslock);
+
+			iowake();
 		}
 
 		if (boost) {
@@ -120,8 +122,10 @@ trap(struct trapframe* tf)
 
 		// if it hits the cumulative time limit --> demote
 		if (demote_on_limit(myproc())) {
-			cprintf("[MLFQ] t=%d pid %d demoted to Q%d (allotment)\n",
-				ticks, myproc()->pid, myproc()->priority);
+			if (!mlfq_tracing()) {
+				cprintf("[MLFQ] t=%d pid %d demoted to Q%d (allotment)\n",
+					ticks, myproc()->pid, myproc()->priority);
+			}
 			yield();// we already demoted in function now yield
 		}
 		else if (quantum_expired(myproc())) {

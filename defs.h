@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct mlfqev; // for mlfq simulator
 
 // bio.c
 void            binit(void);
@@ -121,6 +122,10 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 int             getprio(int);
+int             get_cpu_ticks(void);
+void            mlfq_trace_set(int);
+int             mlfq_drain(struct mlfqev*, int);
+int             mlfq_tracing(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -197,3 +202,5 @@ void            account_tick(struct proc* p);
 int             demote_on_limit(struct proc* p);
 int             quantum_expired(struct proc* p);
 int             priority_boost(void);
+int             mlfq_iowait(int);
+void            iowake(void);

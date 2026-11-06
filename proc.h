@@ -44,6 +44,8 @@ struct proc {
   int pid;                     // Process ID
   int ticks;                   // No. of time slice currently used by CPU for this process
   int total_ticks;             // Total no. of time slice currently use by CPU for this process in a particular queue
+  int cpu_ticks;               // Cumulative CPU ticks consumed by this process
+  uint io_until;               // Deadline for timed I/O (used later)
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // switch() here to run process

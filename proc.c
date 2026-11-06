@@ -7,6 +7,9 @@
 #include "proc.h"
 #include "spinlock.h"
 
+// mlfq simulator addition
+#include "mlfq_simulator/mlfqtrace.h"
+
 struct {
     struct spinlock lock;
     struct proc proc[NPROC];
@@ -20,10 +23,15 @@ extern void trapret(void);
 
 static void wakeup1(void* chan);
 
+// MLFQ Simulator functions
+void mlfq_trace_init(void);
+void mlfq_ev(int, struct proc*, int);
+
 void
 pinit(void)
 {
     initlock(&ptable.lock, "ptable");
+    mlfq_trace_init(); // mlfq simulator initialization
 }
 
 // Must be called with interrupts disabled
@@ -91,6 +99,8 @@ found:
     p->priority = 0; // initializing to queue Q0
     p->ticks = 0;
     p->total_ticks = 0;
+    p->cpu_ticks = 0;
+    p->io_until = 0;
 
     release(&ptable.lock);
 
@@ -375,6 +385,7 @@ scheduler(void)
                 found = 1;
                 switchuvm(p);
                 p->state = RUNNING;
+                mlfq_ev(EV_RUN, p, p->priority); // MLFQ event capturing for simulator
                 swtch(&(c->scheduler), p->context);
                 switchkvm();
 
@@ -411,6 +422,14 @@ sched(void)
         panic("sched interruptible");
     intena = mycpu()->intena;
     p->ticks = 0;
+
+    // mlfq simulator
+    if (p->state == RUNNABLE)
+        mlfq_ev(EV_YIELD, p, p->priority);
+    else if (p->state == SLEEPING)
+        mlfq_ev(EV_SLEEP, p, p->priority);
+    else if (p->state == ZOMBIE)
+        mlfq_ev(EV_EXIT, p, p->priority);
     swtch(&p->context, mycpu()->scheduler);
     mycpu()->intena = intena;
 }
@@ -493,11 +512,13 @@ wakeup1(void* chan)
 {
     struct proc* p;
 
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-        if (p->state == SLEEPING && p->chan == chan)
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state == SLEEPING && p->chan == chan) {
             p->state = RUNNABLE;
+            mlfq_ev(EV_WAKE, p, p->priority);
+        }
+    }
 }
-
 // Wake up all processes sleeping on chan.
 void
 wakeup(void* chan)
@@ -594,16 +615,19 @@ int allotment_for_priority(int q) {
 void account_tick(struct proc* p) {
     p->ticks++;
     p->total_ticks++;
+    p->cpu_ticks++;
 }
 
 int
-demote_on_limit(struct proc *p)
+demote_on_limit(struct proc* p)
 {
     if (p->priority != 3 &&
         p->total_ticks >= allotment_for_priority(p->priority)) {
         p->priority++;
         p->ticks = 0;
         p->total_ticks = 0;
+
+        mlfq_ev(EV_DEMOTE, p, p->priority);
         return 1;
     }
     return 0;
@@ -620,7 +644,7 @@ int quantum_expired(struct proc* p) {
 int
 priority_boost(void)
 {
-    struct proc *p;
+    struct proc* p;
     int moved = 0;
 
     acquire(&ptable.lock);
@@ -629,13 +653,16 @@ priority_boost(void)
             continue;
         if (p->priority != 0) {
             moved++;
-            cprintf("[MLFQ] BOOST: pid %d (%s) -> Q0\n",
-                    p->pid, p->name);
+            if (!mlfq_tracing()) {
+                cprintf("[MLFQ] BOOST: pid %d (%s) -> Q0\n",
+                        p->pid, p->name);
+            }
         }
         p->priority = 0;
         p->ticks = 0;
         p->total_ticks = 0;
     }
+    mlfq_ev(EV_BOOST, 0, moved);
     release(&ptable.lock);
     return moved;
 }
@@ -644,17 +671,150 @@ priority_boost(void)
 int
 getprio(int pid)
 {
-  struct proc *p;
-  int r = -1;
+    struct proc* p;
+    int r = -1;
 
-  acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid && p->state != UNUSED){
-      r = p->priority;
-      break;
+    acquire(&ptable.lock);
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->pid == pid && p->state != UNUSED) {
+            r = p->priority;
+            break;
+        }
     }
-  }
-  release(&ptable.lock);
+    release(&ptable.lock);
 
-  return r;
+    return r;
+}
+
+int
+get_cpu_ticks(void)
+{
+    struct proc *p = myproc();
+
+    if (p == 0)
+        return -1;
+
+    return p->cpu_ticks;
+}
+
+//----------------------------- MLFQ Trace Recorder -----------------------------
+
+#define EVN 1024
+
+static struct mlfqev evbuf[EVN];
+static uint evhead;
+static uint evtail;
+static int evon;
+static struct spinlock evlock;
+
+void
+mlfq_trace_init(void)
+{
+    initlock(&evlock, "mlfqev");
+}
+
+int
+mlfq_tracing(void)
+{
+    int on;
+
+    acquire(&evlock);
+    on = evon;
+    release(&evlock);
+
+    return on;
+}
+
+void
+mlfq_ev(int type, struct proc* p, int q)
+{
+    acquire(&evlock);
+
+    if (evon) {
+        if (evhead - evtail == EVN)
+            evtail++;
+
+        evbuf[evhead % EVN].tick = ticks;
+        evbuf[evhead % EVN].type = type;
+        evbuf[evhead % EVN].pid = p ? p->pid : 0;
+        evbuf[evhead % EVN].q = q;
+
+        evhead++;
+    }
+
+    release(&evlock);
+}
+
+void
+mlfq_trace_set(int on)
+{
+    acquire(&evlock);
+
+    evon = on;
+
+    if (on)
+        evhead = evtail = 0;
+
+    release(&evlock);
+}
+
+int
+mlfq_drain(struct mlfqev* out, int max)
+{
+    int n = 0;
+
+    if (max <= 0)
+        return -1;
+
+    acquire(&evlock);
+
+    while (evtail != evhead && n < max) {
+        out[n++] = evbuf[evtail % EVN];
+        evtail++;
+    }
+
+    release(&evlock);
+
+    return n;
+}
+
+int
+mlfq_iowait(int n)
+{
+    struct proc *p = myproc();
+
+    if (p == 0 || n <= 0)
+        return -1;
+
+    acquire(&ptable.lock);
+
+    p->io_until = ticks + n;
+
+    sleep(p, &ptable.lock);
+
+    release(&ptable.lock);
+
+    return 0;
+}
+
+void
+iowake(void)
+{
+    struct proc *p;
+
+    acquire(&ptable.lock);
+
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state == SLEEPING &&
+            p->io_until != 0 &&
+            ticks >= p->io_until) {
+
+            p->io_until = 0;
+            p->state = RUNNABLE;
+
+            mlfq_ev(EV_WAKE, p, p->priority);
+        }
+    }
+
+    release(&ptable.lock);
 }
