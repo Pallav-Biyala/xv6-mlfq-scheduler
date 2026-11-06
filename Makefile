@@ -174,7 +174,11 @@ UPROGS=\
 	_kill\
 	_ln\
 	_ls\
-        _mlfqtest\
+    _mlfqtest\
+	_mlfq_cpu_test\
+	_mlfq_trace_test\
+	_mlfq_io_test\
+	_mlfq_sim\
 	_mkdir\
 	_rm\
 	_sh\
@@ -182,6 +186,7 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
+
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

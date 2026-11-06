@@ -23,3 +23,6 @@
 
 // Add getprio() to the kernel
 #define SYS_getprio 22
+
+// Adding mlfqctl to show mlfq simulator
+#define SYS_mlfqctl 23
