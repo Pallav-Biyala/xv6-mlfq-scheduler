@@ -78,7 +78,7 @@ during development to accommodate the compiler.
 
 ## MLFQ Simulator
 
-We also have added a userspace simulator (`mlfq_sim`) that visualizes the execution of processes under the actual xv6 MLFQ scheduler. Hence, now we can run mlfq_sum and adding processes, and then we can see at each time tick the current process running and status of queues etc. 
+We also have added a userspace simulator (`mlfq_sim`) that visualizes the execution of processes under the actual xv6 MLFQ scheduler. Hence, now we can run mlfq_sim and adding processes, and then we can see at each time tick the current process running and status of queues etc. 
 
 Unlike a standalone scheduling simulator, this tool uses real xv6 processes. It generates configurable CPU-bound and I/O-bound workloads, records scheduling events inside the kernel, and reconstructs a tick-by-tick execution timeline.
 
